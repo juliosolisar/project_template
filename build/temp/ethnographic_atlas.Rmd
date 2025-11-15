@@ -1,0 +1,128 @@
+---
+title: "Ethnographic Atlas"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(dplyr)
+library(janitor)
+library(stringr)
+library(readxl)
+library(sf) 
+library(ggplot2)
+library(tidyr)
+library(haven)
+library(survival)
+library(forcats)
+library(modelsummary)
+library(lubridate)
+```
+
+
+```{r, echo = FALSE}
+#Import the GIS data as CSV with info on localities, districts, etc.
+districts <- read_csv("Dropbox/Working Papers Harvard/Ghana- Chiefs/02_data/output/gis/districts.csv",
+                      show_col_types = FALSE)
+```
+
+```{r, echo = FALSE, message=FALSE}
+#Import the whole list of districts mapped to Murdock's Ethnicity Map (done in QGIS)
+#Note that it is larger than districts, because some districts have more than one group, we'll deal with that below
+gh_districts_murdock <- read_csv("Dropbox/Working Papers Harvard/Ghana- Chiefs/02_data/output/gis/gh_districts_murdock.csv",
+                                 show_col_types = FALSE) 
+
+#Get unique Murdock groups
+murdock_groups <- gh_districts_murdock |> 
+  group_by(NAME, TRIBE_CODE) |> 
+  count() |> 
+  select(-n) |> 
+  filter(!is.na(NAME))
+
+#Find concordance with EA
+murdock_ea_concordance <- read_excel("Dropbox/Working Papers Harvard/Ghana- Chiefs/02_data/murdock/Murdock_EA_Concordance_April19_2024.xlsx") |> 
+  janitor::clean_names()
+
+gh_murdock_gps <- left_join(murdock_groups, murdock_ea_concordance, by = c("NAME" = "murdock_map_ethnicity_name"))  |> 
+  janitor::clean_names() |> 
+  select(name, tribe_code, ea=ethnographic_atlas_ethnicity_name)
+
+#Add EA variables from Ancestral Characteristics Dataset
+ancestral_characteristics_clean <- read_dta("Dropbox/Working Papers Harvard/Ghana- Chiefs/02_data/temp/ancestral_characteristics_clean.dta")
+
+#Get variable and value labels
+var_labs <- sapply(ancestral_characteristics_clean, function(x) attr(x, "label"))
+
+val_labs <- lapply(ancestral_characteristics_clean, function(x) attr(x, "labels"))
+val_labs <- val_labs[!sapply(val_labs, is.null)]
+
+ancestral_characteristics_clean <- ancestral_characteristics_clean |>
+  mutate(across(where(~ inherits(.x, "labelled")), ~ haven::as_factor(.x, levels = "labels")))
+
+#Keep some exploratory EA variables, matrilinearity and village selection
+ancestral_characteristics_clean <- ancestral_characteristics_clean |> 
+  select(v107, v43, v72)
+
+#Have a dataset of Ghana Murdock groups with their characteristics
+gh_murdock_gps <- left_join(gh_murdock_gps, ancestral_characteristics_clean,  by = c("ea" = "v107"))
+
+#Manually add Fanti/Fante not in Ancient Characteristics Dataset (from D-PLACE)
+gh_murdock_gps <- gh_murdock_gps |> 
+  mutate(v43 = if_else(ea == "FANTI", 2, v43),
+         v72 = if_else(ea == "FANTI", 6, v72)) 
+
+#Create strings
+
+gh_murdock_gps <- gh_murdock_gps %>%
+  mutate(v72_str = names(val_labs$v72)[ match(v72, unname(val_labs$v72)) ],
+         v43_str = names(val_labs$v43)[ match(v43, unname(val_labs$v43)) ])
+
+#Remove temporary files
+rm(ancestral_characteristics_clean, murdock_ea_concordance, murdock_groups, val_labs, var_labs)
+```  
+
+```{r, echo = FALSE}
+#In QGIS we found the intersection between districts and Murdock's group boundaries
+#Then, get the % of each district in group in order to decide which group does a district belong to
+#Code below keeps the largest %
+districts_murdock_intersection <- gh_districts_murdock |> 
+  group_by(LOC_NAME, FIRST_REG_, FIRST_DIST, FIRST_DI_1, id) |> 
+  slice_max(order_by = area_ratio, n = 1)
+```
+
+```{r, echo = FALSE, message=FALSE}
+#Merge with districts
+df <- districts |> 
+  left_join(districts_murdock_intersection) |> 
+  filter(!is.na(area_ratio)) #remove the 26 without group match because of shape differences in shapefiles between Murdock and districts
+
+#Manually find the groups for those districts that did not find Murdock match
+manual_groups <- read_excel("Dropbox/Working Papers Harvard/Ghana- Chiefs/02_data/temp/manual_groups.xlsx") |> 
+  rename(NAME = NAME_1)
+
+#Append both
+df <- bind_rows(df, manual_groups) |> 
+  select(id, LOC_NAME, FIRST_REG_, FIRST_DIST, FIRST_DI_1, murdock = NAME)
+
+#Add EA variables 
+df <- df |> 
+  left_join(gh_murdock_gps, by = c("murdock" = "name"))
+
+
+#Check if they are the same as the ones on df
+#df_na <- df |> 
+#  filter(is.na(area_ratio)) |> 
+#  select(LOC_NAME, FIRST_REG_, FIRST_DIST, FIRST_DI_1, id) |> 
+#  left_join(manual_groups, by = c("id"))
+
+
+rm(gh_districts_murdock, manual_groups, districts_murdock_intersection, districts)
+```
+
+
+```{r}
+write.csv(df, "~/Dropbox/Working Papers Harvard/Ghana- Chiefs/02_data/temp/ea/gis_murdock.csv") 
+write.csv(gh_murdock_gps, "~/Dropbox/Working Papers Harvard/Ghana- Chiefs/02_data/temp/ea/gh_murdock_gps.csv") 
+```
+

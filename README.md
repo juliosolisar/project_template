@@ -13,3 +13,9 @@ Two folders
 - `analysis`
   - Code analysing clean data from stored in `~Dropbox/.../06_data/output/`
   - Can generate output which is also saved on `~Dropbox/.../06_data/output/`
+  
+To make code reproducible:
+
+1. Create an Rproject at the top of the repo folder (i.e., at the same level of this README file)
+
+2. Modify the .Renviron file to point into the Dropbox or other folder containing the data
