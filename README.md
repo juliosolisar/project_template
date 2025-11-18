@@ -1,6 +1,6 @@
 # Project Template
 
-![project_template-1](https://github.com/user-attachments/assets/3d568646-a9fa-449a-a0a5-731e2cdb033c)
+![project_template-1 2](https://github.com/user-attachments/assets/4e407cc5-2a3d-4fb3-9353-107675f2bbd9)
 
 Standard architecture for code and project management (based on David Yang's lab manual)
 
