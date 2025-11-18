@@ -1,4 +1,7 @@
 # Project Template
+
+![project_template-1](https://github.com/user-attachments/assets/3d568646-a9fa-449a-a0a5-731e2cdb033c)
+
 Standard architecture for code and project management (based on David Yang's lab manual)
 
 Two folders
