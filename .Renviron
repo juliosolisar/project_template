@@ -1,0 +1,2 @@
+#Change DATADIR to the folder where data lives in Dropbox
+#DATADIR=~/Dropbox/Working Papers Harvard/ ... /02_data
